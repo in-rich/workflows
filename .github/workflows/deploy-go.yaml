@@ -1,0 +1,75 @@
+name: Deploy Go
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+      github_env:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      service:
+        type: string
+        required: true
+      project:
+        type: string
+        required: true
+      public:
+        type: boolean
+        required: true
+      with_postgres:
+        type: boolean
+        required: false
+        default: false
+      http2:
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      identity_provider:
+        required: true
+      service_account:
+        required: true
+
+env:
+  AUTHENTICATED: ${{ inputs.public && '--allow-unauthenticated' || '--no-allow-unauthenticated' }}
+  POSTGRES_SECRET_NAME: '--update-secrets=DSN=${{ inputs.service }}-dsn:latest'
+  # Hack because otherwise we cannot fulfill the second part of the ternary operator, in the deploy flags.
+  EMPTY: ''
+  HTTP2: ${{ inputs.http2 && '--use-http2' || '--no-use-http2' }}
+
+jobs:
+  deploy-go:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github_env }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve Go packages
+        uses: actions/download-artifact@v4
+        with:
+          name: vendor
+          path: ./vendor/
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.identity_provider }}
+          service_account: ${{ secrets.service_account }}
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          env_vars: |
+            GOPRIVATE=github.com/in-rich/*
+            ENV=${{ inputs.env }}
+            RELEASE=${{ inputs.sha }}
+          service: ${{ inputs.service }}
+          region: europe-west9
+          project_id: ${{ inputs.project }}
+          source: ./
+          flags: '--concurrency=100 --ingress=all --max-instances=3 --min-instances=1 --platform=managed --timeout=1m --cpu=1 --memory=512Mi ${{ env.HTTP2 }} ${{ env.AUTHENTICATED }} --execution-environment=gen1 --cpu-boost ${{ inputs.with_postgres && env.POSTGRES_SECRET_NAME || env.EMPTY }}'
+      - name: Deploy results
+        run: echo ${{ steps.deploy.outputs.url }}

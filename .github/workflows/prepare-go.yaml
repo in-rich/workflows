@@ -1,0 +1,32 @@
+name: Prepare Go
+
+on:
+  workflow_call:
+    secrets: 
+      goprivate_access_token:
+        required: true
+
+jobs:
+  prepare-go:
+    runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/in-rich/*
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.1'
+      - name: Retrieve Github credentials
+        run: git config --global url.https://${{ secrets.goprivate_access_token }}@github.com/.insteadOf https://github.com/
+      - name: Download Go packages
+        run: go mod download
+      - name: Vendor Go packages
+        run: go mod vendor
+      - name: Upload vendor
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor
+          path: ./vendor/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

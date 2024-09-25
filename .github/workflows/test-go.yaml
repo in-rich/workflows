@@ -1,0 +1,58 @@
+name: Test Go
+
+on:
+  workflow_call:
+    secrets:
+      firebase_key:
+        required: false
+
+jobs:
+  test-go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_USER: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      GOPRIVATE: github.com/in-rich/*
+    steps:
+      - name: Check firebase
+        id: check_firebase
+        run: echo "ok=${{ secrets.firebase_key != '' }}" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.1'
+      # ==================================================================================
+      # If test runs on Firebase
+      - name: Retrieve Firebase credentials
+        if: steps.check_firebase.outputs.ok == 'true'
+        run: echo "${{ secrets.firebase_key }}" | base64 --decode | jq > "$HOME/firebase-adc.json"
+      - name: Install Firebase CLI
+        if: steps.check_firebase.outputs.ok == 'true'
+        run: curl -sL https://firebase.tools | bash
+      # ==================================================================================
+      - name: Retrieve Go packages
+        uses: actions/download-artifact@v4
+        with:
+          name: vendor
+          path: ./vendor/
+      # ==================================================================================
+      # If test runs on Firebase
+      - name: Run tests
+        if: steps.check_firebase.outputs.ok == 'true'
+        run: GOOGLE_APPLICATION_CREDENTIALS="$HOME/firebase-adc.json" firebase emulators:exec "go test ./... -count=1 -p 1 -v -coverpkg=./..."
+      # ==================================================================================
+      - name: Run tests
+        if: steps.check_firebase.outputs.ok == 'false'
+        run: go test ./... -count=1 -p 1 -v -coverpkg=./...
