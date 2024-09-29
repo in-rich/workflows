@@ -1,0 +1,54 @@
+name: Build Node
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+    outputs:
+      package:
+        description:  The name of the generated package
+        value: ${{ jobs.build-node.outputs.package }}
+
+jobs:
+  build-node:
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.package.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: install pnpm
+        run: npm install -g pnpm
+      - name: install dependencies
+        run: pnpm i --frozen-lockfile
+      - name: build the application
+        run: pnpm build:${{ inputs.env }}
+      - name: Get manifest.json version
+        id: get_version
+        run: |
+          if ${{ inputs.env == 'prod' }}
+          then
+            echo "version=v$(node -p "require('./dist/manifest.json').version")" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ inputs.sha }}" >> $GITHUB_OUTPUT
+          fi
+          echo "got manifest.production.json version: $(node -p "require('./dist/manifest.json').version_name")"
+      - name: Generate package name
+        id: package
+        run:
+          echo "name=chrome-extension-${{ steps.get_version.outputs.version }}" >> $GITHUB_OUTPUT
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ./dist/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
