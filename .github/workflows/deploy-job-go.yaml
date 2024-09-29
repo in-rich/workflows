@@ -12,53 +12,29 @@ on:
       sha:
         type: string
         required: true
-      service:
+      job:
         type: string
         required: true
       project:
         type: string
         required: true
-      public:
-        type: boolean
-        required: true
-      with_postgres:
-        type: boolean
-        required: false
-        default: false
-      http2:
-        type: boolean
-        required: false
-        default: true
-      minInstances:
-        type: number
-        required: false
-        default: 0
       main:
         type: string
         required: false
         default: ''
-      with_sendgrid:
-        type: boolean
-        required: false
-        default: false
-      sendgrid_admin:
+      timeout:
         type: string
         required: false
-        default: ''
-        description: The email of the admin to send the email to.
+        default: '1om'
+      retries:
+        type: string
+        required: false
+        default: 3
     secrets:
       identity_provider:
         required: true
       service_account:
         required: true
-
-env:
-  AUTHENTICATED: ${{ inputs.public && '--allow-unauthenticated' || '--no-allow-unauthenticated' }}
-  POSTGRES_SECRET_NAME: '--update-secrets=DSN=${{ inputs.service }}-dsn:latest'
-  SENDGRID_SECRET_NAME: '--update-secrets=SENDGRID_API_KEY=sendgrid-api-key:latest'
-  # Hack because otherwise we cannot fulfill the second part of the ternary operator, in the deploy flags.
-  EMPTY: ''
-  HTTP2: ${{ inputs.http2 && '--use-http2' || '--no-use-http2' }}
 
 jobs:
   deploy-go:
@@ -90,11 +66,8 @@ jobs:
             GOPRIVATE=github.com/in-rich/*
             ENV=${{ inputs.env }}
             RELEASE=${{ inputs.sha }}
-            SENDGRID_ADMIN_EMAIL=${{ inputs.sendgrid_admin }}
-          service: ${{ inputs.service }}
+          job: ${{ inputs.job }}
           region: europe-west9
           project_id: ${{ inputs.project }}
           source: ./
-          flags: '--concurrency=100 --ingress=all --max-instances=3 --min-instances=${{ inputs.minInstances }} --platform=managed --timeout=1m --cpu=1 --memory=512Mi ${{ env.HTTP2 }} ${{ env.AUTHENTICATED }} --execution-environment=gen1 --cpu-boost ${{ inputs.with_postgres && env.POSTGRES_SECRET_NAME || env.EMPTY }} ${{ inputs.with_sendgrid && env.SENDGRID_SECRET_NAME || env.EMPTY }}'
-      - name: Deploy results
-        run: echo ${{ steps.deploy.outputs.url }}
+          flags: '--task-timeout ${{ inputs.timeout }} --max-retries ${{ inputs.retries }}'
