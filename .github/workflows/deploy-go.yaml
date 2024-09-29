@@ -29,6 +29,10 @@ on:
         type: boolean
         required: false
         default: true
+      minInstances:
+        type: number
+        required: false
+        default: 0
     secrets:
       identity_provider:
         required: true
@@ -70,6 +74,6 @@ jobs:
           region: europe-west9
           project_id: ${{ inputs.project }}
           source: ./
-          flags: '--concurrency=100 --ingress=all --max-instances=3 --min-instances=1 --platform=managed --timeout=1m --cpu=1 --memory=512Mi ${{ env.HTTP2 }} ${{ env.AUTHENTICATED }} --execution-environment=gen1 --cpu-boost ${{ inputs.with_postgres && env.POSTGRES_SECRET_NAME || env.EMPTY }}'
+          flags: '--concurrency=100 --ingress=all --max-instances=3 --min-instances=${{ inputs.minInstances }} --platform=managed --timeout=1m --cpu=1 --memory=512Mi ${{ env.HTTP2 }} ${{ env.AUTHENTICATED }} --execution-environment=gen1 --cpu-boost ${{ inputs.with_postgres && env.POSTGRES_SECRET_NAME || env.EMPTY }}'
       - name: Deploy results
         run: echo ${{ steps.deploy.outputs.url }}

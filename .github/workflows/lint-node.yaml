@@ -1,0 +1,24 @@
+name: Lint Node
+
+on:
+  workflow_call
+
+jobs:
+  # --------------------------------------------------------------------------------
+  # Lint stage
+  # --------------------------------------------------------------------------------
+  lint-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: install pnpm
+        run: npm install -g pnpm
+      - name: install dependencies
+        run: pnpm i --frozen-lockfile
+      - name: run lint
+        run: pnpm run lint:default
+      - name: run prettier
+        run: pnpm run lint:prettier

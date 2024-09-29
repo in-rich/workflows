@@ -1,0 +1,41 @@
+name: Release extension
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+
+jobs:
+  releasee-node-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - name: Retrieve build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.package }}
+          path: ./dist
+      - name: Compress build
+        run: |
+          cd ./dist
+          zip -r ../${{ inputs.package }}.zip *
+          cd ../
+      - name: Get manifest.json version
+        id: get_version
+        run: |
+          MANIFEST_PATH="./dist/manifest.json"
+          NODE_VERSION="$(node -p "require('$MANIFEST_PATH').version")"
+          echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          files: |
+            ${{ inputs.package }}.zip

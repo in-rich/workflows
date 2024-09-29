@@ -1,0 +1,53 @@
+name: Auto-Tag extension
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        type: string
+        required: true
+    outputs:
+      updated:
+        description: Wether a new version was pushed or not
+        value: ${{ jobs.auto-tag-extension.outputs.updated }}
+
+jobs:
+  auto-tag-extension:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      updated: ${{ steps.compare_versions.outputs.compare }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: true
+      - name: Retrieve build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.package }}
+          path: ./dist
+      - name: Get manifest.json version
+        id: get_version
+        run: |
+          MANIFEST_PATH="./dist/manifest.json"
+          NODE_VERSION="$(node -p "require('$MANIFEST_PATH').version")"
+          echo "version=$NODE_VERSION" >> $GITHUB_OUTPUT
+      - name: Fetch latest tag
+        id: get_latest_tag
+        run: |
+          echo "tag=$(git describe --tags `git rev-list --tags --max-count=1` || echo 'v0.0.0')" >> $GITHUB_OUTPUT
+      - name: Compare manifest.production.json version with latest tag
+        id: compare_versions
+        run: |
+          npm install -g pnpm
+          pnpm i --frozen-lockfile
+          pnpm add semver
+          COMPARE="$(node -p "require('semver').gt('${{ steps.get_version.outputs.version }}', '${{ steps.get_latest_tag.outputs.tag }}')")"
+          echo "compare=$COMPARE" >> $GITHUB_OUTPUT
+      - name: Create tag
+        if: steps.compare_versions.outputs.compare == 'true'
+        run: git tag ${{ steps.get_version.outputs.version }}
+      - name: Push tag
+        if: steps.compare_versions.outputs.compare == 'true'
+        run: git push origin ${{ steps.get_version.outputs.version }}
