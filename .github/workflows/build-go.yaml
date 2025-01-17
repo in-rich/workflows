@@ -78,7 +78,7 @@ jobs:
         run: |
           wget https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.34/grpc_health_probe-linux-amd64 -O grpc_health_probe
           chmod +x grpc_health_probe
-          sudo apt install netcat
+          sudo apt install netcat-traditional
       # ==================================================================================
       # If test runs on Firebase
       - name: Retrieve Firebase credentials
